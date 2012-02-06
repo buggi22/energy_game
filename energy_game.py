@@ -181,20 +181,27 @@ def auction_plants(game):
         allow_total_pass = True
 
     potential_selectors_indices = [] + game['player_order']
+    num_plants_sold = 0
 
     while(len(potential_selectors_indices) > 0):
         current_selector_index = potential_selectors_indices[0]
         current_selector_name = game['players'][current_selector_index]['name']
 
-        print "Available plants: " 
+        print "Backup plants: "
+        for i, p in enumerate(game['plants_backup'] ):
+            print "  %s" % (str(p))
+
+        print "Plants for sale: " 
         for i, p in enumerate(game['plants_for_sale'] ):
-            print "%d: %s" % (i, str(p))
+            print "  %d: %s" % (i, str(p))
 
         selected_plant = None
         while selected_plant == None:
             selected_plant = raw_input(current_selector_name + ', select a plant or pass: ')
 
-            if selected_plant == "pass":
+            if selected_plant == "pass" or selected_plant == "":
+                selected_plant = "pass"
+
                 if not(allow_total_pass):
                     print "All players must purchase a plant this round"
                     selected_plant = None
@@ -249,7 +256,8 @@ def auction_plants(game):
                     print "Current best bid: %d" % current_bid
                     new_bid = raw_input(current_bidder_name + ', please bid on the plant or pass: ')
 
-                    if new_bid == "pass":
+                    if new_bid == "pass" or new_bid == "":
+                        new_bid = "pass"
                         break
 
                     # make sure the bid is valid
@@ -284,28 +292,72 @@ def auction_plants(game):
             winning_player = game['players'][potential_bidders_indices[bid_winner]]
             print "Bid winner: %s at a price of %d" % (winning_player['name'], current_bid)
             winning_player['money'] -= current_bid
-            winning_player['plants'] += [ game['plants_for_sale'][selected_plant] ]
-            del ((game['plants_for_sale'])[selected_plant])
-
-            # TODO: shift plants down from "backup" position?  (Check rules)
-
+            winning_player['plants'].append( game['plants_for_sale'][selected_plant] )
+            del game['plants_for_sale'][selected_plant]
+            num_plants_sold += 1
             potential_selectors_indices.remove( potential_bidders_indices[bid_winner] )
+
+            # draw new plant
+            next_plant = game['plants_in_deck'][0]
+
+            if next_plant == 'STEP_3_BEGINS':
+                game['game_step'] = 3
+                del ((game['plants_for_sale'])[0])
+            else:
+                game['plants_backup'].append(next_plant)
+                game['plants_backup'].sort( key = lambda plant: plant['initial_bid'] )
+            
+            game['plants_in_deck'].remove(next_plant)
+
+            # shift plant(s) down from "backup" position
+            if game['game_step'] == 3:
+                game['plants_for_sale'].extend(game['plants_backup'])
+                game['plants_backup'] = []
+            else:
+                game['plants_for_sale'].append( game['plants_backup'][0] )
+                del ((game['plants_backup'])[0])
+                
+            game['plants_for_sale'].sort( key = lambda plant: plant['initial_bid'] )
 
     # in first round, redetermine player order based on results of first auction
     if(game['round_number'] == 0):
         determine_order(game)
 
 def buy_resources(game):
-    print "Resource-buying phase"
+    print "Resource-buying phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
     resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
 
     for p in resource_order:
-        raw_input(p['name'] + ', buy resources: ')
+        buy_resources_single_player(game, p)
+
+def buy_resources_single_player(game, p):
+    # get unique resource names
+    resource_names = sorted(list(set( [r['resource'] for r in game['resources_for_sale'] ] )))
+
+    for resource_name in resource_names:
+        amount = None
+        while amount == None: 
+            # TODO: print availability of current resource
+
+            amount = raw_input(p['name'] + ', how much ' + resource_name + ' would you like to buy? ')
+
+            if amount == "":
+                amount = 0
+                break
+
+            try:
+                amount = int(amount)
+            except:
+                print "Amount must be a number"
+                amount = None
+                continue
+
+        # TODO: complete the transaction
 
 def build_cities(game):
-    print "City-building phase"
+    print "City-building phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
     resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
@@ -314,7 +366,7 @@ def build_cities(game):
         raw_input(p['name'] + ', build cities: ')
 
 def burn_resources(game):
-    print "Resource-burning phase"
+    print "Resource-burning phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
     resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
