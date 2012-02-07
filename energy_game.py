@@ -1,6 +1,7 @@
 import marshal
 import random
 import traceback
+import itertools
 
 def make_blank_game():
     initial_game = {
@@ -105,12 +106,29 @@ def setup_cities(game):
             make_city("Saint Paul",2,2),
             make_city("San Francisco",1,2)
             ]
-    game['city_connection_matrix'] = [
-            [-1,0,15],
-            [0,-1,-1],
-            [15,-1,-1]
-            ]
-    
+    game['city_connection_matrix'] = make_connection_matrix(game, [
+        ("Minneapolis", "Saint Paul", 0),
+        ("Minneapolis", "San Francisco", 15),
+        ] )
+
+def make_connection_matrix(game, connections):
+    num_cities = len(game['cities'])
+    city_names = [city['name'] for city in game['cities']]
+    connection_matrix = []
+
+    for i in range(num_cities):
+        connection_matrix.append( [] )
+        for j in range(num_cities):
+            connection_matrix[i].append( -1 )
+
+    for from_city, to_city, cost in connections:
+        from_index = city_names.index(from_city)
+        to_index = city_names.index(to_city)
+        connection_matrix[from_index][to_index] = cost
+        connection_matrix[to_index][from_index] = cost
+
+    return connection_matrix
+
 def make_player(name, color, money):
     return {'name': name, 'color': color, 'money': money, 'plants': []}
 
@@ -134,8 +152,6 @@ def print_game(game):
             print str(k) + ':\n\t' + str(v)
 
 def run_game(game):
-    #print_game(game)    # just for debugging
-
     if game['phase'] == 1:
         determine_order(game)
     elif game['phase'] == 2:
@@ -333,17 +349,50 @@ def buy_resources(game):
         buy_resources_single_player(game, p)
 
 def buy_resources_single_player(game, p):
+    print "%s, it is your turn to buy resources" % p['name']
+
     # get unique resource names
     resource_names = sorted(list(set( [r['resource'] for r in game['resources_for_sale'] ] )))
 
-    for resource_name in resource_names:
+    # print availability of resources
+    resource_groups = itertools.groupby(game['resources_for_sale'], key = lambda r: r['resource'])
+    prices = {}
+    for resource_name, entries in resource_groups:
+        available = [x for x in entries if x['quantity'] > 0]
+        available.sort(key=lambda r: r['price'])
+
+        cumulative_price = 0
+        cumulative_count = 0
+        price_map = {}
+
+        for a in available:
+            for i in range(a['quantity']):
+                cumulative_price += a['price']
+                cumulative_count += 1
+                price_map[cumulative_count] = cumulative_price
+
+        if len(price_map) > 0:
+            prices[resource_name] = price_map
+
+    if len(prices) == 0:
+        print "No resources of any kind available to purchase"
+        raw_input("Press Enter to continue. ")
+        return
+
+    for resource_name, price_map in prices.items():
+        if len(price_map) <= 0: 
+            print "No %s available to purchase"
+            continue
+
+        print "Prices for %s:" % resource_name
+        for count, price in price_map.items():
+            print "  %5d: total price = %5d" % (count, price)
+
         amount = None
         while amount == None: 
-            # TODO: print availability of current resource
-
             amount = raw_input(p['name'] + ', how much ' + resource_name + ' would you like to buy? ')
 
-            if amount == "":
+            if amount == "" or amount == "0":
                 amount = 0
                 break
 
@@ -354,7 +403,28 @@ def buy_resources_single_player(game, p):
                 amount = None
                 continue
 
+            cost = price_map.get(amount)
+
+            if cost == None:
+                print "Requested quantity is not available"
+                amount = None
+                continue
+
+            if p['money'] < cost:
+                print "You do not have enough money for that purchase"
+                amount = None
+                continue
+
+            # TODO: make sure player's plants have enough capacity to hold the requested amount
+
+        if amount <= 0:
+            continue
+
+        print "Purchasing %d units of %s.  Cost = %d" % (amount, resource_name, cost)
+        
         # TODO: complete the transaction
+
+        # TODO: if there is any ambiguity, let the player choose which plant to assign the resources to
 
 def build_cities(game):
     print "City-building phase (player order reversed)"
