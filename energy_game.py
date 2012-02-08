@@ -181,7 +181,7 @@ def determine_order(game):
         print "Random player order assigned initially: " + ', '.join( [game['players'][i]['name'] for i in order] )
         game['player_order'] = order
     else:
-        players_unordered = [(len(cities_occupied_by(i, game)), highest_plant_owned_by(p), i, p) for i,p in enumerate(players)]
+        players_unordered = [(len(cities_occupied_by(i, game)), highest_plant_owned_by(p), i, p) for i,p in enumerate(game['players'])]
         players_ordered = sorted( players_unordered )
         order = [i for (num_cities,highest_plant,i,p) in players_ordered]
         print "New player order: " + ', '.join( [game['players'][i]['name'] for i in order] )
@@ -415,16 +415,104 @@ def buy_resources_single_player(game, p):
                 amount = None
                 continue
 
-            # TODO: make sure player's plants have enough capacity to hold the requested amount
+            # make sure player's plants have enough capacity to hold the requested amount
+
+            plants_accepting_resource = [plant for plant in p['plants'] if resource_name in plant['inputs']]
+            max_purchase = 0
+
+            valid_destinations = []
+
+            for plant in plants_accepting_resource:
+                current_stock = sum( [ plant['resources'].get(r, 0) for r in resource_names ] )
+                capacity = 2*plant['inputs'].get(resource_name, 0)
+                availability = capacity - current_stock
+                if availability > 0:
+                    valid_destinations.append((plant,availability))
+                max_purchase += availability
+
+            if amount > max_purchase:
+                print "Your plants do not have enough capacity for that purchase"
+                amount = None
+                continue
 
         if amount <= 0:
             continue
 
         print "Purchasing %d units of %s.  Cost = %d" % (amount, resource_name, cost)
         
-        # TODO: complete the transaction
+        # pay for the transaction and reduce supplies
+        total_cost = 0
+        amount_to_purchase = amount
+        while amount_to_purchase > 0:
+            best_price_entry = min([r for r in game['resources_for_sale'] if \
+                    r['quantity'] > 0 and r['resource'] == resource_name], key=lambda r: r['price'])
+            print "DEBUGGING: best_price_entry = %s" % str(best_price_entry)
+            amount_to_purchase -= 1
+            best_price_entry['quantity'] -= 1
+            p['money'] -= best_price_entry['price']
+            total_cost += best_price_entry['price']
 
-        # TODO: if there is any ambiguity, let the player choose which plant to assign the resources to
+        assert(cost == total_cost)
+
+        # decide how to assign resources to plants
+        # if there is any ambiguity, let the player choose which plant to assign the resources to
+        possible_divisions = get_possible_divisions(amount, valid_destinations)
+
+        assert len(possible_divisions) > 0
+
+        if len(possible_divisions) == 1:
+            division = possible_divisions[0]
+        else:
+            division = None
+
+            print "Possible divisions:"
+            for i, div in enumerate(possible_divisions):
+                print "  %d:" % i
+                for dest_plant, transfer_amount in division:
+                    print "    %d %s to %s" % (transfer_amount, resource_name, str(dest_plant))
+
+        while division == None:
+            division = raw_input(p['name'] + ', select a division of resources from the above list: ')
+
+            try:
+                division = int(division)
+            except:
+                print "Selection must be a number"
+                division = None
+                continue
+
+            if division < 0 or division >= len(possible_divisions):
+                print "Selection must be in the valid range"
+                division = None
+                continue
+
+            division = possible_divisions[division]
+
+        # actually assign the resources to plants, according to the chosen scheme
+        print "Assigning resources:"
+        for dest_plant, transfer_amount in division:
+            print "    %d %s to %s" % (transfer_amount, resource_name, str(dest_plant))
+            if not(resource_name in dest_plant['resources']):
+                dest_plant['resources'][resource_name] = 0
+            dest_plant['resources'][resource_name] += transfer_amount
+
+def get_possible_divisions(amount, destinations):
+    (first_plant, first_availability) = destinations[0]
+
+    if len(destinations) == 0:
+        return []
+    elif len(destinations) == 1:
+        if first_availability < amount:
+            return []
+        else:
+            return [ [ (first_plant, amount) ] ]
+
+    divisions = []
+
+    for i in range( min(first_availability, amount) + 1 ):
+        divisions += [ [(first_plant, i)] + div for div in get_possible_divisions(amount - i, destinations[1:]) ]
+
+    return divisions
 
 def build_cities(game):
     print "City-building phase (player order reversed)"
@@ -462,7 +550,7 @@ def highest_plant_owned_by(player):
     else:
         return max( [plant['initial_bid'] for plant in player['plants']] )
 
-if __name__ == '__main__':
+def test():
     test_game = make_blank_game()
 
     setup_deck(test_game)
@@ -481,6 +569,9 @@ if __name__ == '__main__':
     except Exception, e:
         print_game(test_game)
         traceback.print_exc()
+
+if __name__ == '__main__':
+    test()
 
 
 
