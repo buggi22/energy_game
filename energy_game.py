@@ -101,15 +101,86 @@ def setup_resources(game):
         }
 
 def setup_cities(game):
-    game['cities'] = [
-            make_city("Minneapolis",1,1),
-            make_city("Saint Paul",2,2),
-            make_city("San Francisco",1,2)
-            ]
+    add_city(game, "Minneapolis",1,1),
+    add_city(game, "Saint Paul",2,2),
+    add_city(game, "San Francisco",1,2)
+    add_city(game, "San Diego",1,2)
+    add_city(game, "Los Angeles",1,2)
+    add_city(game, "Portland",1,2)
+    add_city(game, "Seattle",1,2)
+    add_city(game, "Boise",1,2)
+    add_city(game, "Cheyenne",1,2)
+    add_city(game, "Saint Louis",1,2)
+    add_city(game, "Chicago",1,2)
+    add_city(game, "New York",1,2)
+    add_city(game, "Charlotte",1,2)
+    add_city(game, "Washington, D.C.",1,2)
+    add_city(game, "Miami",1,2)
+    add_city(game, "Memphis",1,2)
+    add_city(game, "New Orleans",1,2)
+    add_city(game, "Louisville",1,2)
+    add_city(game, "Atlanta",1,2)
+    add_city(game, "Phoenix",1,2)
+    add_city(game, "Houston",1,2)
+    add_city(game, "Austin",1,2)
+    add_city(game, "Dallas",1,2)
+    add_city(game, "Fargo",1,2)
+    add_city(game, "Albuquerque",1,2)
+    add_city(game, "Santa Fe",1,2)
+    add_city(game, "Denver",1,2)
+    add_city(game, "Detroit",1,2)
+    add_city(game, "Boston",1,2)
+    add_city(game, "Cincinatti",1,2)
+
     game['city_connection_matrix'] = make_connection_matrix(game, [
         ("Minneapolis", "Saint Paul", 0),
-        ("Minneapolis", "San Francisco", 15),
+        ("Los Angeles", "San Francisco", 15),
+        ("Los Angeles", "San Diego", 15),
+        ("Phoenix", "San Diego", 15),
+        ("Phoenix", "Santa Fe", 15),
+        ("Albuquerque", "Santa Fe", 15),
+        ("Santa Fe", "Denver", 15),
+        ("Santa Fe", "Austin", 15),
+        ("Austin", "Dallas", 15),
+        ("Austin", "Houston", 15),
+        ("Dallas", "Houston", 15),
+        ("New Orleans", "Houston", 15),
+        ("New Orleans", "Memphis", 15),
+        ("Portland", "San Francisco", 15),
+        ("Portland", "Seattle", 15),
+        ("Seattle", "Boise", 15),
+        ("Portland", "Boise", 15),
+        ("Boise", "Cheyenne", 15),
+        ("Cheyenne", "Fargo", 15),
+        ("Fargo", "Minneapolis", 15),
+        ("Saint Paul", "Chicago", 15),
+        ("Saint Paul", "Saint Louis", 15),
+        ("Saint Louis", "Chicago", 15),
+        ("Detroit", "Chicago", 15),
+        ("Detroit", "Cincinatti", 15),
+        ("Louisville", "Cincinatti", 15),
+        ("Louisville", "Memphis", 15),
+        ("Memphis", "Atlanta", 15),
+        ("Memphis", "Charlotte", 15),
+        ("Atlanta", "Miami", 15),
+        ("Charlotte", "Washington, D.C.", 15),
+        ("New York", "Washington, D.C.", 15),
+        ("New York", "Boston", 15),
         ] )
+
+def show_all_neighbors(game):
+    for i in range(len(game['cities'])):
+        show_neighbors_of(i, game)
+
+def show_neighbors_of(city_index, game):
+    city = game['cities'][city_index]
+    print "%s (city_index = %d) has the following neighbors:" % (city['name'], city_index)
+
+    row = game['city_connection_matrix'][city_index]
+
+    for i, conn in enumerate(row):
+        if conn != -1:
+            print "  %s (%d)" % (game['cities'][i]['name'], conn)
 
 def make_connection_matrix(game, connections):
     num_cities = len(game['cities'])
@@ -129,20 +200,24 @@ def make_connection_matrix(game, connections):
 
     return connection_matrix
 
-def make_player(name, color, money):
-    return {'name': name, 'color': color, 'money': money, 'plants': []}
+def add_player(game, name, color, money):
+    id = len(game['players'])
+    game['players'].append( {'name': name, 'id': id, 'color': color, 'money': money, 'plants': []} )
 
 def make_plant(initial_bid, inputs, cities_powered):
     return {'initial_bid': initial_bid, 'inputs': inputs,
             'cities_powered': cities_powered, 'resources': {}}
 
-def make_city(name, position_x, position_y):
-    return {'name': name, 'position_x': position_x, 'position_y': position_y,
-            'occupants': {}}
+def add_city(game, name, position_x, position_y):
+    id = len( game['cities'] )
+    game['cities'].append( {'name': name, 'id': id, 'position_x': position_x, 'position_y': position_y,
+            'occupants': {}} )
 
 def game_loop(game):
     while(game['winner'] == None):
         run_game(game)
+
+    print "Game Over.  Winner is %s" % game['players'][ game['winner'] ]
 
 def print_game(game):
     for k, v in game.items():
@@ -163,11 +238,13 @@ def run_game(game):
     elif game['phase'] == 5:
         burn_resources(game)
     elif game['phase'] == 6:
+        replenish_resources(game)
+    elif game['phase'] == 7:
         update_power_plants(game)
     else:
         raise Exception("Unrecognized phase: %s" % str(game['phase']))
 
-    if(game['phase'] == 6):
+    if(game['phase'] == 7):
         game['phase'] = 1
         game['round_number'] += 1
     else:
@@ -343,9 +420,9 @@ def buy_resources(game):
     print "Resource-buying phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
-    resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
+    reverse_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
 
-    for p in resource_order:
+    for p in reverse_order:
         buy_resources_single_player(game, p)
 
 def buy_resources_single_player(game, p):
@@ -518,28 +595,194 @@ def build_cities(game):
     print "City-building phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
-    resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
+    reverse_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
 
-    for p in resource_order:
-        raw_input(p['name'] + ', build cities: ')
+    for p in reverse_order:
+        print "%s's turn to build cities" % p['name']
+        keep_building = True
+        while keep_building:
+            available = available_cities_to_build(game, p)
+
+            if len(available) == 0:
+                print "No available cities"
+                keep_building = False
+                break
+
+            print "Available cities: "
+            for i, a in enumerate(available):
+                print "  %d: %s" % (i, a['name'])
+
+            build_choice = raw_input(p['name'] + ', build a city or pass: ')
+
+            if build_choice == 'pass' or build_choice == '':
+                keep_building = False
+                break
+
+            try:
+                build_choice = int(build_choice)
+            except:
+                print "Could not parse selection.  Passing instead."
+                keep_building = False
+                break
+
+            if build_choice < 0 or build_choice >= len(available):
+                print "Selection was not in valid range.  Passing instead."
+                keep_building = False
+                break
+
+            cost = 10
+            # TODO: fix the cost calculation to incorporate the cheapest possible connection
+
+            if cost > p['money']:
+                print "Not enough money.  Passing instead."
+                keep_building = False
+                break
+
+            # occupy the city
+            city = available[build_choice]
+            city['occupants'][10] = p['id']
+
+            # pay for construction
+            p['money'] -= cost
+
+            print "Built a city at %s for a price of %d" % (city['name'], cost)
+
+
+def available_cities_to_build(game, p):
+    cities_occupied = cities_occupied_by(p['id'], game)
+
+    # a player's first city can be in any unoccupied spot
+    if len(cities_occupied) == 0:
+        return [city for city in game['cities'] if len(city['occupants']) == 0 ]
+
+    # for later cities...
+    # find the connected component (there can only be one) to which the player's cities belong
+    #   NOTE: "connected" in the sense of having a path via player's own cities or opponents' cities
+    first_city_id = cities_occupied[0]['id']
+    component = connected_component_starting_at( first_city_id, game )
+
+    # then, find all unoccupied cities one step away from the connected component
+    available = []
+    for c in component:
+        row = game['city_connection_matrix'][c]
+        for i, conn in enumerate(row):
+            city = game['cities'][i]
+            if conn != -1 and len(city['occupants']) == 0 and not(i in available):
+                #TODO: update this condition for later stages
+                available.append(i)
+
+    return [game['cities'][i] for i in available]
 
 def burn_resources(game):
     print "Resource-burning phase (player order reversed)"
 
     # NOTE: this phase is played in reverse order
-    resource_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
+    reverse_order = [game['players'][i] for i in reversed( game['player_order'] ) ]
 
-    for p in resource_order:
-        raw_input(p['name'] + ', burn resources: ')
+    winner_candidates = []
+
+    for p in reverse_order:
+        print "%s's turn to burn resources" % p['name']
+
+        ready = plants_ready_to_burn(p)
+
+        if len(ready) == 0:
+            print "No plants ready to burn"
+            continue
+
+        print "Plants ready to burn:"
+        for i, (plant, options) in enumerate(ready):
+            print "  %d: %s" % (i, str(plant))
+            for j, resource_name in enumerate(options):
+                if resource_name == None:
+                    print "    %d: free burn to power up to %d cities" % (j, plant['cities_powered'])
+                else:
+                    print "    %d: burn %d %s to power up to %d cities" % (j, plant['inputs'][resource_name], resource_name, plant['cities_powered'])
+
+        raw_input(p['name'] + ', press Enter to burn resources. ')
+
+        # TODO: allow player to choose to burn a subset of resources, and to choose between multiple options (when available) for hybrid plants
+
+        powered_cities = 0
+        unpowered_cities = len(cities_occupied_by(p['id'], game)) 
+        for plant, options in ready:
+            chosen_option = options[0]
+            cities_to_power = min(unpowered_cities, plant['cities_powered'])
+            powered_cities += cities_to_power
+            unpowered_cities -= cities_to_power
+
+            if chosen_option == None:
+                print "Free burn to power %d cities" % cities_to_power
+            else:
+                amount = plant['inputs'][chosen_option]
+                print "Burning %d %s to power %d cities" % (amount, chosen_option, cities_to_power)
+                plant['resources'][chosen_option] -= amount
+                if plant['resources'][chosen_option] == 0:
+                    del plant['resources'][chosen_option]
+
+        income = get_income_for(powered_cities)
+        p['money'] += income
+
+        print "Total of %d cities powered, for an income of %d" % (powered_cities, income)
+
+        if powered_cities > 20:
+            winner_candidates.append(p)
+
+    # TODO: decide a unique winner
+    if len(winner_candidates) > 0:
+        game['winner'] = winner_candidates[0]['id']
+
+def get_income_for(powered_cities):
+    max_income = 100
+    income_map = {0: 10, 1: 20, 2: 30, 3: 39, 4: 48, 5: 56, 6: 63, 7: 70, 8: 76, 9: 82, 10: 87, 11: 92, 12: 96, 13: 100}
+    return income_map.get(powered_cities, max_income)
+
+def plants_ready_to_burn(p):
+    ready = []
+    for plant in p['plants']:
+        if len(plant['inputs']) == 0:
+            ready.append( (plant, [None]) )
+        else:
+            options = []
+            for resource_name, resource_needed in plant['inputs'].items():
+                if plant['resources'].get(resource_name, 0) >= resource_needed:
+                    options.append( resource_name )
+            if len(options) > 0:
+                ready.append( (plant, options) )
+    return ready
+
+def replenish_resources(game):
+    print "Replenish resources phase"
+    raw_input("Press Enter to continue. ")
+    # TODO: implement this phase
 
 def update_power_plants(game):
     print "Plant update phase"
     raw_input("Press Enter to continue. ")
+    # TODO: implement this phase
+
+def connected_component_starting_at(city_index, game):
+    def helper(game, found_so_far):
+        extras = []
+        
+        for f in found_so_far:
+            row = game['city_connection_matrix'][f]
+            for i, conn in enumerate(row):
+                city = game['cities'][i]
+                if conn != -1 and len(city['occupants']) > 0 and not(i in found_so_far) and not(i in extras):
+                    extras.append(i)
+        
+        if len(extras) == 0:
+            return found_so_far
+        else:
+            return helper(game, found_so_far + extras)
+
+    return helper(game, [city_index])
 
 def cities_occupied_by(player_index, game):
     result = []
     for city in game['cities']:
-        for value, occupant in city['occupants']:
+        for value, occupant in city['occupants'].items():
             if occupant == player_index:
                 result.append(city)
     return result
@@ -557,12 +800,11 @@ def test():
     setup_resources(test_game)
     setup_cities(test_game)
 
-    players = [
-        make_player("player A", "FF0000", 100),
-        make_player("player B", "00FF00", 100),
-        make_player("player C", "0000FF", 100)
-    ]
-    test_game['players'] = players
+    add_player(test_game, "player A", "FF0000", 200),
+    add_player(test_game, "player B", "00FF00", 200),
+    add_player(test_game, "player C", "0000FF", 200)
+
+    show_all_neighbors(test_game)
 
     try:
         game_loop( test_game )
