@@ -717,6 +717,7 @@ def burn_resources(game):
                 amount = plant['inputs'][chosen_option]
                 print "Burning %d %s to power %d cities" % (amount, chosen_option, cities_to_power)
                 plant['resources'][chosen_option] -= amount
+                game['resources_backup'][chosen_option] += amount
                 if plant['resources'][chosen_option] == 0:
                     del plant['resources'][chosen_option]
 
@@ -754,7 +755,19 @@ def plants_ready_to_burn(p):
 def replenish_resources(game):
     print "Replenish resources phase"
     raw_input("Press Enter to continue. ")
-    # TODO: implement this phase
+
+    replenishment_scheme = {'Coal': 3, 'Oil': 3, 'Garbage': 1, 'Uranium': 1}
+
+    for resource, amount in replenishment_scheme.items():
+        remaining_capacity = sum( [r['capacity'] - r['quantity'] for r in game['resources_for_sale'] if r['resource'] == resource] )
+        to_replenish = min( [ amount, game['resources_backup'][resource], remaining_capacity ] )
+
+        for i in range(to_replenish):
+            highest_open = max( [r for r in game['resources_for_sale'] if r['resource'] == resource and r['capacity'] > r['quantity']],
+                    key = lambda r: r['price'] )
+            highest_open['quantity'] += 1
+
+        print "Replenished %d %s" % (to_replenish, resource)
 
 def update_power_plants(game):
     print "Plant update phase"
@@ -803,8 +816,6 @@ def test():
     add_player(test_game, "player A", "FF0000", 200),
     add_player(test_game, "player B", "00FF00", 200),
     add_player(test_game, "player C", "0000FF", 200)
-
-    show_all_neighbors(test_game)
 
     try:
         game_loop( test_game )
